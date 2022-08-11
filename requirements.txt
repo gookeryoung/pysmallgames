@@ -1,0 +1,5 @@
+Nuitka==1.0.3
+orderedset==2.0.3
+pygame==2.1.2
+PyYAML==6.0
+zstandard==0.18.0
