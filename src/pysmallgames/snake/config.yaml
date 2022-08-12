@@ -1,0 +1,22 @@
+game_settings:
+  geometry:
+    win_size: [ 720, 480 ]
+    boundary: { x: 24, y: 32 }
+    score_border: { left: 480 }
+  colors:
+    bg: [ 0, 0, 0 ]
+    border: [ 255, 255, 0 ]
+    font: [ 0, 255, 0 ]
+  caption: 'Snake Game v1.0'
+  font:
+    path: 'assets/fonts/RobotWorldItalic.ttf'
+    size: 25
+    color_info: [ 130, 250, 120 ]
+    color_warn: [ 255, 0, 255 ]
+  fps: 60
+  speed: 5
+  snake_init:
+    pos: [ 15, 5 ]
+    length: 5
+    speed: 5
+    direction: 'right'
