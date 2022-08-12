@@ -8,6 +8,7 @@ import yaml
 SnakeInfo = namedtuple('SnakeInfo', 'direction speed score')
 SnakeColor = namedtuple('SnakeColor', 'head mid tail')
 SnakeMotion = namedtuple('SnakeMotion', 'right left up down')
+GameText = namedtuple('GameText', 'condition content color pos')
 DIRECTIONS = {pygame.K_LEFT: 'left', pygame.K_RIGHT: 'right', pygame.K_UP: 'up', pygame.K_DOWN: 'down'}
 
 
@@ -56,31 +57,25 @@ class Game:
     def __init__(self, config_file: str):
         with open(config_file, encoding='utf-8') as f:
             self.config = yaml.load(f, Loader=yaml.FullLoader)
-            self.settings = self.config['game_settings']
+
+        self.geometry: dict = self.config['geometry']
+        self.colors: dict = self.config['colors']
+        self.snake = Snake(**self.config['snake_init'])
 
         pygame.init()
-        pygame.display.set_caption(self.settings['caption'])
-
-        self.fps = self.settings['fps']
-        self.geometry: dict = self.settings['geometry']
-        self.colors: dict = self.settings['colors']
-        self.win_size: list = self.geometry['win_size']
+        pygame.display.set_caption(self.config['caption'])
+        self.ttf = pygame.font.Font(self.config['font']['name'], self.config['font']['size'])
         self.screen = pygame.display.set_mode(self.geometry['win_size'])
-        self.border_left: int = self.geometry['score_border']['left']
-        self.font: dict = self.settings['font']
-
-        self.ttf = pygame.font.Font(self.settings['font']['path'], self.settings['font']['size'])
-        self.snake = Snake(**self.settings['snake_init'])
 
     def run(self):
+        fps = self.config['fps']
         clock = pygame.time.Clock()
-        border_line = (self.border_left, 0), (self.border_left, self.win_size[1])
         start_time = pc()
         messages = {
-            'score': (f'Scores: {self.snake.info.score}', True, self.font['color_info']),
-            'speed': (f'Speed: {self.snake.info.speed}', True, self.font['color_info']),
-            'game_over': ('Game Over!', True, self.font['color_warn']),
-            'continue': ('Press Enter To Continue', True, self.font['color_warn'])
+            'score': GameText(True, f'Scores: {self.snake.info.score}', self.colors['info'], (510, 20)),
+            'speed': GameText(True, f'Speed: {self.snake.info.speed}', self.colors['info'], (510, 60)),
+            'game_over': GameText(self.snake.alive(), 'Game Over!', self.colors['warning'], (130, 200)),
+            'continue': GameText(self.snake.alive(), 'Press Enter To Continue', self.colors['warning'], (30, 250))
         }
 
         while True:
@@ -91,22 +86,18 @@ class Game:
                     self.check_keydown_events(event)
 
             self.screen.fill(self.colors['bg'])
-            pygame.draw.line(self.screen, self.colors['border'], *border_line)
-            if self.snake.alive():
-                if pc() - start_time > 1.0 / self.snake.info.speed:
-                    self.snake.move()
-                    start_time = pc()
-                self.snake.draw(self.screen)
-            else:
-                self.screen.blit(self.ttf.render(*messages['game_over']), (130, 200))
-                self.screen.blit(self.ttf.render(*messages['continue']), (30, 250))
+            pygame.draw.line(self.screen, self.colors['border'], **self.config['lines']['score'])
+            if self.snake.alive() and pc() - start_time > 1.0 / self.snake.info.speed:
+                self.snake.move()
+                start_time = pc()
 
-            self.screen.blit(self.ttf.render(*messages['score']), (510, 20))
-            self.screen.blit(self.ttf.render(*messages['speed']), (510, 60))
+            for k, v in messages.items():
+                if v.condition:
+                    self.screen.blit(self.ttf.render(v.content, True, v.color), v.pos)
 
+            self.snake.draw(self.screen)
             pygame.display.flip()
-            print(repr(self.snake))
-            clock.tick(self.fps)
+            clock.tick(fps)
 
     def check_keydown_events(self, event):
         if event.key == pygame.K_q:
@@ -114,7 +105,7 @@ class Game:
         elif event.key in DIRECTIONS:
             self.snake.change_direction(DIRECTIONS[event.key])
         elif event.key == pygame.K_RETURN and not self.snake.alive():
-            self.snake = Snake(**self.settings['snake_init'])
+            self.snake = Snake(**self.config['snake_init'])
 
 
 if __name__ == '__main__':
