@@ -43,7 +43,7 @@ class Snake:
 
     def eat(self):
         motion = MOTIONS[self.prop['direction']]
-        self.grids.appendleft((self.grids[0] + motion[0], self.grids[0][1] + motion[1]))
+        self.grids.appendleft((self.grids[0][0] + motion[0], self.grids[0][1] + motion[1]))
         self.prop['score'] = self.prop['score'] + 50
         self.prop['speed'] = bisect.bisect(SCORES, self.prop['score']) + SNAKE_INIT['speed']
 
