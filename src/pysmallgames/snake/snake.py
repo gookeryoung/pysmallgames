@@ -1,16 +1,25 @@
+import bisect
 import random
 import sys
 from collections import deque, namedtuple
 from time import perf_counter as pc
 
 import pygame
-import yaml
 
-SnakeColor = namedtuple('SnakeColor', 'head mid tail')
 SnakeMotion = namedtuple('SnakeMotion', 'right left up down')
-SnakeInfo = namedtuple('SnakeInfo', 'direction size speed border score')
-GameText = namedtuple('GameText', 'condition content color pos')
-DIRECTIONS = {pygame.K_LEFT: 'left', pygame.K_RIGHT: 'right', pygame.K_UP: 'up', pygame.K_DOWN: 'down'}
+SnakeProp = namedtuple('SnakeProp', 'pos length speed direction score')
+GameColor = namedtuple('GameColor', 'snake food bg border info warning')
+GameGeometry = namedtuple('GameGeometry', 'width height grid nx ny')
+GameFont = namedtuple('GameFont', 'path size')
+GameSettings = namedtuple('GameSettings', 'caption fps font_name font_size')
+
+SNAKE_INIT = SnakeProp(pos=(8, 5), length=5, speed=4, direction='right', score=0)
+COLORS = GameColor(snake=0x00ffff, food=0xffff00, bg=0x0, border=0xffffff, info=(0, 255, 0), warning=(255, 0, 0))
+MOTIONS = SnakeMotion(right=(1, 0), left=(-1, 0), up=(0, -1), down=(0, 1))
+GEOMETRY = GameGeometry(width=720, height=480, grid=24, nx=20, ny=20)
+SETTINGS = GameSettings(caption='Snake Game v1.0', fps=60, font_name='assets/fonts/RobotWorldItalic.ttf', font_size=25)
+DIRECTIONS = {pygame.K_j: 'left', pygame.K_l: 'right', pygame.K_i: 'up', pygame.K_k: 'down'}
+SCORES = (150, 300, 500, 750, 1100, 1500, 2000, 2500)
 
 
 def pos_to_rect(x: int, y: int, size: int):
@@ -18,67 +27,66 @@ def pos_to_rect(x: int, y: int, size: int):
 
 
 class Snake:
-    COLORS = SnakeColor(head=(120, 255, 60), mid=(140, 200, 60), tail=(80, 120, 70))
-    MOTIONS = SnakeMotion(right=(1, 0), left=(-1, 0), up=(0, -1), down=(0, 1))
-
-    def __init__(self, pos: list, length: int, size: int, speed: int, border: list, direction: str):
-        motion = self.MOTIONS._asdict().get(direction)
+    def __init__(self, pos: list, length: int, speed: int, direction: str, score: int):
+        motion = MOTIONS._asdict().get(direction)
         if direction in {'left', 'right'}:
             self.grids = deque([(x, pos[1]) for x in range(pos[0], pos[0] - length * motion[0], -motion[0])])
         else:
             self.grids = deque([(pos[0], y) for y in range(pos[1], pos[1] - length * motion[1], -motion[1])])
-        self.info = SnakeInfo(direction=direction, size=size, speed=speed, border=border, score=0)
+        self.prop = SnakeProp(pos=pos, length=length, speed=speed, direction=direction, score=score)
+
+    def __repr__(self):
+        return f'Grids({len(self.grids)}): {self.grids}, direction: {self.prop.direction}, alive: {self.alive()}'
 
     def draw(self, screen: pygame.surface.Surface):
-        for i, grid in enumerate(self.grids):
-            if i in (0, len(self.grids) - 1):
-                color = {0: self.COLORS.head, len(self.grids) - 1: self.COLORS.tail}.get(i)
-            else:
-                color = self.COLORS.mid
-            pygame.draw.rect(screen, color, pos_to_rect(*grid, size=self.info.size))
+        for grid in self.grids:
+            pygame.draw.rect(screen, COLORS.snake, pos_to_rect(*grid, size=GEOMETRY.grid))
 
     def move(self):
-        motion = self.MOTIONS._asdict().get(self.info.direction)
+        motion = MOTIONS._asdict().get(self.prop.direction)
         x, y = self.grids[0][0] + motion[0], self.grids[0][1] + motion[1]
-        if 0 <= x < self.info.border[0] and 0 <= y <= self.info.border[1]:
+        if 0 <= x < GEOMETRY.nx and 0 <= y < GEOMETRY.ny:
             self.grids.appendleft((x, y))
             self.grids.pop()
         else:
             self.grids.appendleft(self.grids[0])
 
+    def eat(self):
+        motion = MOTIONS._asdict().get(self.prop.direction)
+        x, y = self.grids[0][0] + motion[0], self.grids[0][1] + motion[1]
+        self.grids.appendleft((x, y))
+
+        score = self.prop.score + 50
+        speed = bisect.bisect(SCORES, score) + SNAKE_INIT.speed
+        self.prop = SnakeProp(self.grids[0], len(self.grids), speed, self.prop.direction, score)
+
     def change_direction(self, direction: str):
         head_direction = [self.grids[0][i] - self.grids[1][i] for i in range(2)]
-        if any(head_direction[i] + self.MOTIONS._asdict().get(direction)[i] for i in range(2)):
-            self.info = SnakeInfo(direction, self.info.size, self.info.speed, self.info.border, self.info.score)
+        if any(head_direction[i] + MOTIONS._asdict().get(direction)[i] for i in range(2)):
+            self.prop = SnakeProp(self.grids[0], len(self.grids), self.prop.speed, direction, self.prop.score)
 
     def alive(self):
         return len(set(self.grids)) == len(self.grids)
 
 
 class Game:
-    def __init__(self, config_file: str):
-        with open(config_file, encoding='utf-8') as f:
-            self.config = yaml.load(f, Loader=yaml.FullLoader)
-            self.colors: dict = self.config['colors']
-
+    def __init__(self):
         pygame.init()
-        pygame.display.set_caption(self.config['caption'])
-        self.ttf = pygame.font.Font(self.config['font']['name'], self.config['font']['size'])
-        self.screen = pygame.display.set_mode(self.config['geometry']['win_size'])
-        self.snake, self.messages, self.foods, self.food = None, None, [], None
+        pygame.display.set_caption(SETTINGS.caption)
+        self.ttf = pygame.font.Font(SETTINGS.font_name, SETTINGS.font_size)
+        self.screen = pygame.display.set_mode((GEOMETRY.width, GEOMETRY.height))
+        self.snake, self.messages, self.food = None, None, None
         self.reset()
 
     def reset(self):
-        self.snake = Snake(**self.config['snake_init'])
-        self.messages = {
-            'score': GameText(lambda: False, f'Scores: {self.snake.info.score}', self.colors['info'], (510, 20)),
-            'speed': GameText(lambda: False, f'Speed: {self.snake.info.speed}', self.colors['info'], (510, 60)),
-            'game_over': GameText(self.snake.alive, 'Game Over!', self.colors['warning'], (130, 200)),
-            'continue': GameText(self.snake.alive, 'Press Enter To Continue', self.colors['warning'], (30, 250))
-        }
+        self.snake = Snake(**SNAKE_INIT._asdict())
+        self.generate_food()
+
+    def generate_food(self):
+        foods = [(x, y) for x in range(GEOMETRY.nx) for y in range(GEOMETRY.ny) if (x, y) not in self.snake.grids]
+        self.food = random.choice(foods)
 
     def run(self):
-        fps = self.config['fps']
         clock = pygame.time.Clock()
         start_time = pc()
 
@@ -89,19 +97,27 @@ class Game:
                 elif event.type == pygame.KEYDOWN:
                     self.check_keydown_events(event)
 
-            self.screen.fill(self.colors['bg'])
-            pygame.draw.line(self.screen, self.colors['border'], **self.config['lines']['score'])
-            if self.snake.alive() and pc() - start_time > 1.0 / self.snake.info.speed:
-                self.snake.move()
-                start_time = pc()
+            self.screen.fill(COLORS.bg)
+            pygame.draw.line(self.screen, COLORS.border, (480, 0), (480, 480))
+            if self.snake.alive():
+                if pc() - start_time > 1.0 / self.snake.prop.speed:
+                    self.snake.move()
+                    start_time = pc()
+            else:
+                self.screen.blit(self.ttf.render('Game Over!', True, COLORS.warning), (130, 200))
+                self.screen.blit(self.ttf.render('Press Enter To Continue', True, COLORS.warning), (30, 250))
 
-            for k, v in self.messages.items():
-                if not v.condition():
-                    self.screen.blit(self.ttf.render(v.content, True, v.color), v.pos)
+            self.screen.blit(self.ttf.render(f'Scores: {self.snake.prop.score}', True, COLORS.info), (510, 20))
+            self.screen.blit(self.ttf.render(f'Speed: {self.snake.prop.speed}', True, COLORS.info), (510, 60))
+
+            if self.snake.grids[0] == self.food:
+                self.snake.eat()
+                self.generate_food()
 
             self.snake.draw(self.screen)
+            pygame.draw.rect(self.screen, COLORS.food, pos_to_rect(*self.food, GEOMETRY.grid))
             pygame.display.flip()
-            clock.tick(fps)
+            clock.tick(SETTINGS.fps)
 
     def check_keydown_events(self, event):
         if event.key == pygame.K_q:
@@ -113,5 +129,4 @@ class Game:
 
 
 if __name__ == '__main__':
-    game = Game('config.yaml')
-    game.run()
+    Game().run()
