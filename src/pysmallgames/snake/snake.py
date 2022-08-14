@@ -3,11 +3,12 @@ import random
 import sys
 from collections import deque
 from time import perf_counter as pc
+from typing import Tuple
 
 import pygame
 
 SNAKE_INIT = dict(pos=(8, 5), length=5, speed=4, direction='right', score=0)
-COLORS = dict(snake=0xff00ff, food=0xffff00, bg=0x0, border=0xffffff, info=0xff0000, warning=0xffff00)
+COLORS = dict(snake=0x00cccc, food=0xffff00, bg=0x0, border=0xffffff, info=0x00ff00, warning=0xff0000)
 MOTIONS = dict(right=(1, 0), left=(-1, 0), up=(0, -1), down=(0, 1))
 GEOMETRY = dict(width=720, height=480, grid=24, nx=20, ny=20)
 SETTINGS = dict(caption='Snake Game v1.0', fps=60, font_name='assets/fonts/RobotWorldItalic.ttf', font_size=25)
@@ -15,8 +16,28 @@ DIRECTIONS = {pygame.K_j: 'left', pygame.K_l: 'right', pygame.K_i: 'up', pygame.
 SCORES = (150, 300, 500, 750, 1100, 1500, 2000, 2500)
 
 
-def pos_to_rect(x: int, y: int, size: int):
-    return x * size, y * size, size, size
+def convert_color(x: int) -> Tuple[int, int, int]:
+    """Convert hex format into tuple format.
+
+    >>> convert_color(0xffffff)
+    (255, 255, 255)
+    >>> convert_color(0xff0f11)
+    (255, 15, 17)
+    >>> convert_color(0xccccffffff)
+    (255, 255, 255)
+    """
+    return (x & 0x00ff0000) >> 16, (x & 0x0000ff00) >> 8, (x & 0x000000ff)
+
+
+def pos_to_rect(pos: Tuple[int, int], size: int) -> Tuple[int, int, int, int]:
+    """Convert position into rectangle.
+
+    >>> pos_to_rect((1, 2), 24)
+    (24, 48, 24, 24)
+    >>> pos_to_rect((20, 10), 24)
+    (480, 240, 24, 24)
+    """
+    return pos[0] * size, pos[1] * size, size, size
 
 
 class Snake:
@@ -30,7 +51,10 @@ class Snake:
 
     def draw(self, screen: pygame.surface.Surface):
         for grid in self.grids:
-            pygame.draw.rect(screen, COLORS['snake'], pos_to_rect(*grid, size=GEOMETRY['grid']))
+            pygame.draw.rect(screen, COLORS['snake'], pos_to_rect(grid, size=GEOMETRY['grid']))
+
+        if not self.alive():
+            pygame.draw.rect(screen, COLORS['warning'], pos_to_rect(self.grids[0], size=GEOMETRY['grid']))
 
     def move(self):
         motion = MOTIONS[self.prop['direction']]
@@ -76,6 +100,7 @@ class Game:
     def run(self):
         clock = pygame.time.Clock()
         start_time = pc()
+        bg, border, food, info, warning = [convert_color(COLORS[x]) for x in 'bg border food info warning'.split()]
 
         while True:
             for event in pygame.event.get():
@@ -84,21 +109,21 @@ class Game:
                 elif event.type == pygame.KEYDOWN:
                     self.check_keydown_events(event)
 
-            self.screen.fill(COLORS['bg'])
-            pygame.draw.line(self.screen, COLORS['border'], (480, 0), (480, 480))
+            self.screen.fill(bg)
+            pygame.draw.line(self.screen, border, (480, 0), (480, 480))
             self.snake.draw(self.screen)
-            pygame.draw.rect(self.screen, COLORS['food'], pos_to_rect(*self.food, GEOMETRY['grid']))
+            pygame.draw.rect(self.screen, food, pos_to_rect(self.food, GEOMETRY['grid']))
 
             if self.snake.alive():
                 if pc() - start_time > 1.0 / self.snake.prop['speed']:
                     self.snake.move()
                     start_time = pc()
             else:
-                self.screen.blit(self.ttf.render('game over', True, COLORS['warning']), (130, 200))
-                self.screen.blit(self.ttf.render('press \'enter\' to continue', True, COLORS['warning']), (30, 250))
+                self.screen.blit(self.ttf.render('game over', True, warning), (130, 200))
+                self.screen.blit(self.ttf.render('press \'enter\' to continue', True, warning), (30, 250))
 
-            self.screen.blit(self.ttf.render(f'Scores: {self.snake.prop["score"]}', True, COLORS['info']), (510, 20))
-            self.screen.blit(self.ttf.render(f'Speed: {self.snake.prop["speed"]}', True, COLORS['info']), (510, 60))
+            self.screen.blit(self.ttf.render(f'Scores: {self.snake.prop["score"]}', True, info), (510, 20))
+            self.screen.blit(self.ttf.render(f'Speed: {self.snake.prop["speed"]}', True, info), (510, 60))
 
             if self.snake.grids[0] == self.food:
                 self.snake.eat()
