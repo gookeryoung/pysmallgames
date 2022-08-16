@@ -2,8 +2,10 @@ import os
 import pathlib
 import subprocess
 
+games = ['snake']
+
 if __name__ == '__main__':
-    source_dirs = [f for f in pathlib.Path('.').iterdir() if f.is_dir()]
+    source_dirs = [pathlib.Path(game) for game in games]
     for source_dir in source_dirs:
         os.chdir(source_dir)
         source_file = source_dir / f'{source_dir.stem}.py'
