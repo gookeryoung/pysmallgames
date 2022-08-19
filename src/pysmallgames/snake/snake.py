@@ -14,7 +14,7 @@ SCORES: Tuple[int, ...] = (150, 300, 500, 750, 1100, 1500, 2000, 2500)
 GEOMETRY: Dict[str, int] = dict(width=720, height=480, grid=24, nx=20, ny=20)
 MOTIONS: Dict[str, Tuple[int, int]] = dict(right=(1, 0), left=(-1, 0), up=(0, -1), down=(0, 1))
 COLORS: Dict[str, int] = dict(snake=0x00cccc, food=0xffff00, bg=0x0, border=0xffffff, info=0x00ff00, warning=0xff0000)
-DIRECTIONS: Dict[int, str] = {pygame.K_j: 'left', pygame.K_l: 'right', pygame.K_i: 'up', pygame.K_k: 'down'}
+DIRECTIONS: Dict[int, str] = {pygame.K_LEFT: 'left', pygame.K_RIGHT: 'right', pygame.K_UP: 'up', pygame.K_DOWN: 'down'}
 SETTINGS = GameSettings('Snake Game v1.0', 60, 'assets/fonts/RobotWorldItalic.ttf', 25)
 SNAKE_PROPS = SnakeProps(pos=(8, 5), length=3, direction=choice(['up', 'down', 'left', 'right']), speed=4)
 
